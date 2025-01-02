@@ -14,9 +14,10 @@ function formatSize(bytes) {
   return `${size.toFixed(2)} ${units[unitIndex]}`;
 }
 
-const SizeBar = ({ size, parentSize }) => {
+const SizeBar = ({ size, parentSize, depth = 0 }) => {
   const percentage = (size / parentSize) * 100;
   const hue = 200 - (percentage * 1.5); // Color goes from blue (200) to red (20) as percentage increases
+  const marginLeft = `${depth * 20}px`;
   
   return (
     <div style={{
@@ -25,7 +26,8 @@ const SizeBar = ({ size, parentSize }) => {
       backgroundColor: '#eee',
       borderRadius: '2px',
       overflow: 'hidden',
-      marginTop: '4px'
+      marginTop: '4px',
+      marginLeft
     }}>
       <div style={{
         width: `${Math.max(percentage, 0.5)}%`,
@@ -200,7 +202,7 @@ const FileTreeItem = ({ item, depth = 0, parentSize, onContract }) => {
                 </span>
                 <span>📁 {item.name}</span>
               </div>
-              {parentSize && <SizeBar size={item.size} parentSize={parentSize} />}
+              {parentSize && <SizeBar size={item.size} parentSize={parentSize} depth={depth} />}
             </div>
             <div style={{
               display: 'flex',
@@ -306,7 +308,7 @@ const FileTreeItem = ({ item, depth = 0, parentSize, onContract }) => {
                 </div>
               )}
             </div>
-            {parentSize && <SizeBar size={item.size} parentSize={parentSize} />}
+            {parentSize && <SizeBar size={item.size} parentSize={parentSize} depth={depth} />}
           </div>
           <div style={{
             display: 'flex',
@@ -402,7 +404,7 @@ const UnfolderedFiles = ({ files, parentSize, depth = 0, onContract }) => {
             </span>
             <span>📑 Unfoldered Files ({files.length})</span>
           </div>
-          {parentSize && <SizeBar size={totalSize} parentSize={parentSize} />}
+          {parentSize && <SizeBar size={totalSize} parentSize={parentSize} depth={depth} />}
         </div>
         <div style={{
           display: 'flex',
@@ -545,6 +547,11 @@ const App = () => {
     );
   };
 
+  const getTotalSize = () => {
+    if (!folderData || !folderData.contents) return 0;
+    return folderData.contents.reduce((sum, item) => sum + item.size, 0);
+  };
+
   return (
     <div style={{ padding: '20px', maxWidth: '1200px', margin: '0 auto' }}>
       <h1>File Size Viewer</h1>
@@ -569,7 +576,21 @@ const App = () => {
 
       {folderData && (
         <div>
-          <h2>Selected Folder: {folderData.path}</h2>
+          <div style={{
+            display: 'flex',
+            alignItems: 'baseline',
+            gap: '12px',
+            marginBottom: '16px'
+          }}>
+            <h2 style={{ margin: 0 }}>Selected Folder: {folderData.path}</h2>
+            <span style={{
+              fontSize: '1.2em',
+              color: '#666',
+              fontWeight: 'bold'
+            }}>
+              ({formatSize(getTotalSize())})
+            </span>
+          </div>
           <div style={{ 
             display: 'grid', 
             gridTemplateColumns: '1fr 120px 80px',
