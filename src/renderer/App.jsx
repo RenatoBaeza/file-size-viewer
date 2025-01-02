@@ -87,18 +87,257 @@ const FileTreeItem = ({ item, depth = 0, parentSize }) => {
 
   const isImage = !item.isDirectory && isImageFile(item.name);
 
+  const renderDirectoryContents = () => {
+    if (!item.contents) return null;
+
+    const unfolderedFiles = item.contents.filter(child => !child.isDirectory);
+    const folders = item.contents.filter(child => child.isDirectory);
+    const unfolderedTotalSize = unfolderedFiles.reduce((sum, file) => sum + file.size, 0);
+
+    // Only create unfoldered group if there are both files and folders
+    const unfolderedGroup = (unfolderedFiles.length > 0 && folders.length > 0) ? {
+      isUnfolderedGroup: true,
+      files: unfolderedFiles,
+      size: unfolderedTotalSize
+    } : null;
+
+    // If we only have files (no folders), just show the files directly
+    if (folders.length === 0) {
+      return (
+        <>
+          {unfolderedFiles
+            .sort((a, b) => b.size - a.size)
+            .map((file) => (
+              <FileTreeItem 
+                key={file.path} 
+                item={file} 
+                depth={depth + 1}
+                parentSize={item.size}
+              />
+            ))}
+        </>
+      );
+    }
+
+    // Combine folders and unfoldered group (if it exists), then sort by size
+    const allItems = [...folders];
+    if (unfolderedGroup) {
+      allItems.push(unfolderedGroup);
+    }
+
+    return (
+      <>
+        {allItems
+          .sort((a, b) => b.size - a.size)
+          .map((itemOrGroup) => (
+            itemOrGroup.isUnfolderedGroup ? (
+              <UnfolderedFiles 
+                key="unfoldered"
+                files={itemOrGroup.files} 
+                parentSize={item.size}
+                depth={depth + 1}
+              />
+            ) : (
+              <FileTreeItem 
+                key={itemOrGroup.path} 
+                item={itemOrGroup} 
+                depth={depth + 1}
+                parentSize={item.size}
+              />
+            )
+          ))}
+      </>
+    );
+  };
+
   return (
     <>
-      <div 
-        style={{
-          display: 'grid',
-          gridTemplateColumns: '1fr 120px 80px',
-          gap: '10px',
-          padding: '8px',
-          backgroundColor: depth % 2 === 0 ? '#ffffff' : '#f9f9f9',
-          borderBottom: '1px solid #eee',
-        }}
-      >
+      {item.isDirectory ? (
+        <>
+          <div 
+            style={{
+              display: 'grid',
+              gridTemplateColumns: '1fr 120px 80px',
+              gap: '10px',
+              padding: '8px',
+              backgroundColor: depth % 2 === 0 ? '#ffffff' : '#f9f9f9',
+              borderBottom: '1px solid #eee',
+            }}
+          >
+            <div style={{ 
+              display: 'flex', 
+              flexDirection: 'column',
+            }}>
+              <div style={{
+                display: 'flex',
+                alignItems: 'center',
+                paddingLeft
+              }}>
+                <span 
+                  onClick={() => setIsExpanded(!isExpanded)}
+                  style={{ 
+                    cursor: 'pointer',
+                    marginRight: '5px',
+                    userSelect: 'none'
+                  }}
+                >
+                  {isExpanded ? '🔽' : '▶️'}
+                </span>
+                <span>📁 {item.name}</span>
+              </div>
+              {parentSize && <SizeBar size={item.size} parentSize={parentSize} />}
+            </div>
+            <div style={{
+              display: 'flex',
+              flexDirection: 'column',
+              alignItems: 'flex-end'
+            }}>
+              <div>{formatSize(item.size)}</div>
+              {parentSize && (
+                <div style={{ 
+                  fontSize: '0.8em', 
+                  color: '#666',
+                  marginTop: '4px'
+                }}>
+                  {((item.size / parentSize) * 100).toFixed(1)}%
+                </div>
+              )}
+            </div>
+            <div style={{
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center'
+            }}>
+              <button
+                onClick={handleOpenInExplorer}
+                title="Open in Explorer"
+                style={{
+                  border: 'none',
+                  background: 'none',
+                  cursor: 'pointer',
+                  padding: '4px',
+                  borderRadius: '4px',
+                  opacity: 0.6,
+                  transition: 'all 0.2s',
+                  ':hover': {
+                    opacity: 1,
+                    backgroundColor: '#f0f0f0'
+                  }
+                }}
+              >
+                📂
+              </button>
+            </div>
+          </div>
+          {isExpanded && renderDirectoryContents()}
+        </>
+      ) : (
+        <div 
+          style={{
+            display: 'grid',
+            gridTemplateColumns: '1fr 120px 80px',
+            gap: '10px',
+            padding: '8px',
+            backgroundColor: depth % 2 === 0 ? '#ffffff' : '#f9f9f9',
+            borderBottom: '1px solid #eee',
+          }}
+        >
+          <div style={{ 
+            display: 'flex', 
+            flexDirection: 'column',
+          }}>
+            <div style={{
+              display: 'flex',
+              alignItems: 'center',
+              paddingLeft
+            }}>
+              <span
+                onMouseEnter={() => isImage && setShowPreview(true)}
+                onMouseLeave={() => isImage && setShowPreview(false)}
+                onMouseMove={isImage ? handleMouseMove : undefined}
+                style={{ cursor: isImage ? 'pointer' : 'default' }}
+              >
+                📄 {item.name}
+              </span>
+              {showPreview && isImage && (
+                <div style={{ position: 'relative' }}>
+                  <div style={{ 
+                    position: 'fixed',
+                    left: `${previewPosition.x}px`,
+                    top: `${previewPosition.y}px`
+                  }}>
+                    <ImagePreview path={item.path} />
+                  </div>
+                </div>
+              )}
+            </div>
+            {parentSize && <SizeBar size={item.size} parentSize={parentSize} />}
+          </div>
+          <div style={{
+            display: 'flex',
+            flexDirection: 'column',
+            alignItems: 'flex-end'
+          }}>
+            <div>{formatSize(item.size)}</div>
+            {parentSize && (
+              <div style={{ 
+                fontSize: '0.8em', 
+                color: '#666',
+                marginTop: '4px'
+              }}>
+                {((item.size / parentSize) * 100).toFixed(1)}%
+              </div>
+            )}
+          </div>
+          <div style={{
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center'
+          }}>
+            <button
+              onClick={handleOpenInExplorer}
+              title="Open in Explorer"
+              style={{
+                border: 'none',
+                background: 'none',
+                cursor: 'pointer',
+                padding: '4px',
+                borderRadius: '4px',
+                opacity: 0.6,
+                transition: 'all 0.2s',
+                ':hover': {
+                  opacity: 1,
+                  backgroundColor: '#f0f0f0'
+                }
+              }}
+            >
+              📂
+            </button>
+          </div>
+        </div>
+      )}
+    </>
+  );
+};
+
+const UnfolderedFiles = ({ files, parentSize, depth = 0 }) => {
+  const totalSize = files.reduce((sum, file) => sum + file.size, 0);
+  const [isExpanded, setIsExpanded] = useState(true);
+  const paddingLeft = `${depth * 20}px`;
+
+  if (files.length === 0) return null;
+
+  return (
+    <div style={{
+      borderBottom: '1px solid #eee',
+      backgroundColor: depth % 2 === 0 ? '#f8f8f8' : '#f4f4f4'
+    }}>
+      <div style={{
+        display: 'grid',
+        gridTemplateColumns: '1fr 120px 80px',
+        gap: '10px',
+        padding: '8px',
+      }}>
         <div style={{ 
           display: 'flex', 
           flexDirection: 'column',
@@ -108,103 +347,54 @@ const FileTreeItem = ({ item, depth = 0, parentSize }) => {
             alignItems: 'center',
             paddingLeft
           }}>
-            {item.isDirectory && (
-              <span 
-                onClick={() => setIsExpanded(!isExpanded)}
-                style={{ 
-                  cursor: 'pointer',
-                  marginRight: '5px',
-                  userSelect: 'none'
-                }}
-              >
-                {isExpanded ? '🔽' : '▶️'}
-              </span>
-            )}
-            <span
-              onMouseEnter={() => isImage && setShowPreview(true)}
-              onMouseLeave={() => isImage && setShowPreview(false)}
-              onMouseMove={isImage ? handleMouseMove : undefined}
-              style={{ cursor: isImage ? 'pointer' : 'default' }}
+            <span 
+              onClick={() => setIsExpanded(!isExpanded)}
+              style={{ 
+                cursor: 'pointer',
+                marginRight: '5px',
+                userSelect: 'none'
+              }}
             >
-              {item.isDirectory ? '📁' : '📄'} {item.name}
+              {isExpanded ? '🔽' : '▶️'}
             </span>
-            {showPreview && isImage && (
-              <div style={{ position: 'relative' }}>
-                <div style={{ 
-                  position: 'fixed',
-                  left: `${previewPosition.x}px`,
-                  top: `${previewPosition.y}px`
-                }}>
-                  <ImagePreview path={item.path} />
-                </div>
-              </div>
-            )}
+            <span>📑 Unfoldered Files ({files.length})</span>
           </div>
-          {parentSize && <SizeBar size={item.size} parentSize={parentSize} />}
+          {parentSize && <SizeBar size={totalSize} parentSize={parentSize} />}
         </div>
         <div style={{
           display: 'flex',
           flexDirection: 'column',
           alignItems: 'flex-end'
         }}>
-          <div>{formatSize(item.size)}</div>
+          <div>{formatSize(totalSize)}</div>
           {parentSize && (
             <div style={{ 
               fontSize: '0.8em', 
               color: '#666',
               marginTop: '4px'
             }}>
-              {((item.size / parentSize) * 100).toFixed(1)}%
+              {((totalSize / parentSize) * 100).toFixed(1)}%
             </div>
           )}
         </div>
-        <div style={{
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center'
-        }}>
-          <button
-            onClick={handleOpenInExplorer}
-            title="Open in Explorer"
-            style={{
-              border: 'none',
-              background: 'none',
-              cursor: 'pointer',
-              padding: '4px',
-              borderRadius: '4px',
-              opacity: 0.6,
-              transition: 'all 0.2s',
-              ':hover': {
-                opacity: 1,
-                backgroundColor: '#f0f0f0'
-              }
-            }}
-          >
-            📂
-          </button>
-        </div>
+        <div></div>
       </div>
       
-      {item.isDirectory && isExpanded && item.contents && (
+      {isExpanded && (
         <div>
-          {item.contents
-            .sort((a, b) => {
-              if (a.isDirectory !== b.isDirectory) {
-                return b.isDirectory ? 1 : -1;
-              }
-              return b.size - a.size;
-            })
-            .map((child) => (
+          {files
+            .sort((a, b) => b.size - a.size)
+            .map((file) => (
               <FileTreeItem 
-                key={child.path} 
-                item={child} 
+                key={file.path} 
+                item={file} 
                 depth={depth + 1}
-                parentSize={item.size}
+                parentSize={totalSize}
               />
             ))}
         </div>
       )}
-    </>
+    </div>
   );
 };
 
@@ -223,6 +413,67 @@ const App = () => {
       console.error('Error selecting folder:', error);
     }
     setLoading(false);
+  };
+
+  const renderContents = () => {
+    if (!folderData || !folderData.contents) return null;
+
+    const unfolderedFiles = folderData.contents.filter(item => !item.isDirectory);
+    const folders = folderData.contents.filter(item => item.isDirectory);
+    const totalSize = folderData.contents.reduce((sum, item) => sum + item.size, 0);
+    const unfolderedTotalSize = unfolderedFiles.reduce((sum, file) => sum + file.size, 0);
+
+    // Only create unfoldered group if there are both files and folders
+    const unfolderedGroup = (unfolderedFiles.length > 0 && folders.length > 0) ? {
+      isUnfolderedGroup: true,
+      files: unfolderedFiles,
+      size: unfolderedTotalSize
+    } : null;
+
+    // If we only have files (no folders), just show the files directly
+    if (folders.length === 0) {
+      return (
+        <>
+          {unfolderedFiles
+            .sort((a, b) => b.size - a.size)
+            .map((file) => (
+              <FileTreeItem 
+                key={file.path} 
+                item={file} 
+                parentSize={totalSize}
+              />
+            ))}
+        </>
+      );
+    }
+
+    // Combine folders and unfoldered group (if it exists), then sort by size
+    const allItems = [...folders];
+    if (unfolderedGroup) {
+      allItems.push(unfolderedGroup);
+    }
+
+    return (
+      <>
+        {allItems
+          .sort((a, b) => b.size - a.size)
+          .map((itemOrGroup) => (
+            itemOrGroup.isUnfolderedGroup ? (
+              <UnfolderedFiles 
+                key="unfoldered"
+                files={itemOrGroup.files} 
+                parentSize={totalSize}
+              />
+            ) : (
+              <FileTreeItem 
+                key={itemOrGroup.path} 
+                item={itemOrGroup} 
+                parentSize={totalSize}
+              />
+            )
+          ))}
+      </>
+    );
   };
 
   return (
@@ -269,20 +520,7 @@ const App = () => {
             borderRadius: '5px',
             boxShadow: '0 2px 4px rgba(0,0,0,0.05)'
           }}>
-            {folderData.contents
-              .sort((a, b) => {
-                if (a.isDirectory !== b.isDirectory) {
-                  return b.isDirectory ? 1 : -1;
-                }
-                return b.size - a.size;
-              })
-              .map((item) => (
-                <FileTreeItem 
-                  key={item.path} 
-                  item={item} 
-                  parentSize={folderData.contents.reduce((sum, item) => sum + item.size, 0)}
-                />
-              ))}
+            {renderContents()}
           </div>
         </div>
       )}
