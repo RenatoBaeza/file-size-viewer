@@ -67,7 +67,7 @@ const isImageFile = (filename) => {
   return imageExtensions.some(ext => filename.toLowerCase().endsWith(ext));
 };
 
-const FileTreeItem = ({ item, depth = 0, parentSize }) => {
+const FileTreeItem = ({ item, depth = 0, parentSize, onContract }) => {
   const [isExpanded, setIsExpanded] = useState(false);
   const [showPreview, setShowPreview] = useState(false);
   const [previewPosition, setPreviewPosition] = useState({ x: 0, y: 0 });
@@ -83,6 +83,18 @@ const FileTreeItem = ({ item, depth = 0, parentSize }) => {
       x: e.clientX + 10,
       y: e.clientY + 10
     });
+  };
+
+  const handleContractAll = (e) => {
+    e.stopPropagation();
+    setIsExpanded(false);
+    if (onContract) {
+      onContract();
+    }
+  };
+
+  const handleExpand = (value) => {
+    setIsExpanded(value);
   };
 
   const isImage = !item.isDirectory && isImageFile(item.name);
@@ -113,6 +125,7 @@ const FileTreeItem = ({ item, depth = 0, parentSize }) => {
                 item={file} 
                 depth={depth + 1}
                 parentSize={item.size}
+                onContract={handleExpand}
               />
             ))}
         </>
@@ -136,6 +149,7 @@ const FileTreeItem = ({ item, depth = 0, parentSize }) => {
                 files={itemOrGroup.files} 
                 parentSize={item.size}
                 depth={depth + 1}
+                onContract={handleExpand}
               />
             ) : (
               <FileTreeItem 
@@ -143,6 +157,7 @@ const FileTreeItem = ({ item, depth = 0, parentSize }) => {
                 item={itemOrGroup} 
                 depth={depth + 1}
                 parentSize={item.size}
+                onContract={handleExpand}
               />
             )
           ))}
@@ -206,7 +221,8 @@ const FileTreeItem = ({ item, depth = 0, parentSize }) => {
             <div style={{
               display: 'flex',
               alignItems: 'center',
-              justifyContent: 'center'
+              justifyContent: 'center',
+              gap: '8px'
             }}>
               <button
                 onClick={handleOpenInExplorer}
@@ -226,6 +242,25 @@ const FileTreeItem = ({ item, depth = 0, parentSize }) => {
                 }}
               >
                 📂
+              </button>
+              <button
+                onClick={handleContractAll}
+                title="Contract All Subfolders"
+                style={{
+                  border: 'none',
+                  background: 'none',
+                  cursor: 'pointer',
+                  padding: '4px',
+                  borderRadius: '4px',
+                  opacity: 0.6,
+                  transition: 'all 0.2s',
+                  ':hover': {
+                    opacity: 1,
+                    backgroundColor: '#f0f0f0'
+                  }
+                }}
+              >
+                🔺
               </button>
             </div>
           </div>
@@ -320,10 +355,18 @@ const FileTreeItem = ({ item, depth = 0, parentSize }) => {
   );
 };
 
-const UnfolderedFiles = ({ files, parentSize, depth = 0 }) => {
+const UnfolderedFiles = ({ files, parentSize, depth = 0, onContract }) => {
   const totalSize = files.reduce((sum, file) => sum + file.size, 0);
-  const [isExpanded, setIsExpanded] = useState(true);
+  const [isExpanded, setIsExpanded] = useState(false);
   const paddingLeft = `${depth * 20}px`;
+
+  const handleContractAll = (e) => {
+    e.stopPropagation();
+    setIsExpanded(false);
+    if (onContract) {
+      onContract(false);
+    }
+  };
 
   if (files.length === 0) return null;
 
@@ -377,7 +420,32 @@ const UnfolderedFiles = ({ files, parentSize, depth = 0 }) => {
             </div>
           )}
         </div>
-        <div></div>
+        <div style={{
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          gap: '8px'
+        }}>
+          <button
+            onClick={handleContractAll}
+            title="Contract All"
+            style={{
+              border: 'none',
+              background: 'none',
+              cursor: 'pointer',
+              padding: '4px',
+              borderRadius: '4px',
+              opacity: 0.6,
+              transition: 'all 0.2s',
+              ':hover': {
+                opacity: 1,
+                backgroundColor: '#f0f0f0'
+              }
+            }}
+          >
+            🔺
+          </button>
+        </div>
       </div>
       
       {isExpanded && (
@@ -390,6 +458,7 @@ const UnfolderedFiles = ({ files, parentSize, depth = 0 }) => {
                 item={file} 
                 depth={depth + 1}
                 parentSize={totalSize}
+                onContract={() => setIsExpanded(false)}
               />
             ))}
         </div>
