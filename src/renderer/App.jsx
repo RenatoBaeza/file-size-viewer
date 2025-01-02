@@ -37,8 +37,40 @@ const SizeBar = ({ size, parentSize }) => {
   );
 };
 
-const FileTreeItem = ({ item, depth = 0, parentSize, onDelete }) => {
+const ImagePreview = ({ path }) => {
+  return (
+    <div style={{
+      position: 'fixed',
+      zIndex: 1000,
+      border: '2px solid #ccc',
+      borderRadius: '4px',
+      padding: '4px',
+      backgroundColor: 'white',
+      boxShadow: '0 2px 8px rgba(0,0,0,0.2)',
+      pointerEvents: 'none'
+    }}>
+      <img 
+        src={`file://${path}`} 
+        style={{
+          maxWidth: '200px',
+          maxHeight: '200px',
+          display: 'block'
+        }}
+        alt="Preview"
+      />
+    </div>
+  );
+};
+
+const isImageFile = (filename) => {
+  const imageExtensions = ['.jpg', '.jpeg', '.png', '.gif', '.bmp', '.webp'];
+  return imageExtensions.some(ext => filename.toLowerCase().endsWith(ext));
+};
+
+const FileTreeItem = ({ item, depth = 0, parentSize }) => {
   const [isExpanded, setIsExpanded] = useState(false);
+  const [showPreview, setShowPreview] = useState(false);
+  const [previewPosition, setPreviewPosition] = useState({ x: 0, y: 0 });
   const paddingLeft = `${depth * 20}px`;
 
   const handleOpenInExplorer = async (e) => {
@@ -46,15 +78,14 @@ const FileTreeItem = ({ item, depth = 0, parentSize, onDelete }) => {
     await ipcRenderer.invoke('open-in-explorer', item.path);
   };
 
-  const handleDelete = async (e) => {
-    e.stopPropagation();
-    const result = await ipcRenderer.invoke('delete-item', item.path, item.isDirectory);
-    if (result.success) {
-      onDelete(item.path);
-    } else if (result.error) {
-      alert(`Error deleting item: ${result.error}`);
-    }
+  const handleMouseMove = (e) => {
+    setPreviewPosition({
+      x: e.clientX + 10,
+      y: e.clientY + 10
+    });
   };
+
+  const isImage = !item.isDirectory && isImageFile(item.name);
 
   return (
     <>
@@ -89,7 +120,25 @@ const FileTreeItem = ({ item, depth = 0, parentSize, onDelete }) => {
                 {isExpanded ? '🔽' : '▶️'}
               </span>
             )}
-            {item.isDirectory ? '📁' : '📄'} {item.name}
+            <span
+              onMouseEnter={() => isImage && setShowPreview(true)}
+              onMouseLeave={() => isImage && setShowPreview(false)}
+              onMouseMove={isImage ? handleMouseMove : undefined}
+              style={{ cursor: isImage ? 'pointer' : 'default' }}
+            >
+              {item.isDirectory ? '📁' : '📄'} {item.name}
+            </span>
+            {showPreview && isImage && (
+              <div style={{ position: 'relative' }}>
+                <div style={{ 
+                  position: 'fixed',
+                  left: `${previewPosition.x}px`,
+                  top: `${previewPosition.y}px`
+                }}>
+                  <ImagePreview path={item.path} />
+                </div>
+              </div>
+            )}
           </div>
           {parentSize && <SizeBar size={item.size} parentSize={parentSize} />}
         </div>
@@ -112,8 +161,7 @@ const FileTreeItem = ({ item, depth = 0, parentSize, onDelete }) => {
         <div style={{
           display: 'flex',
           alignItems: 'center',
-          justifyContent: 'center',
-          gap: '8px'
+          justifyContent: 'center'
         }}>
           <button
             onClick={handleOpenInExplorer}
@@ -134,25 +182,6 @@ const FileTreeItem = ({ item, depth = 0, parentSize, onDelete }) => {
           >
             📂
           </button>
-          <button
-            onClick={handleDelete}
-            title="Delete"
-            style={{
-              border: 'none',
-              background: 'none',
-              cursor: 'pointer',
-              padding: '4px',
-              borderRadius: '4px',
-              opacity: 0.6,
-              transition: 'all 0.2s',
-              ':hover': {
-                opacity: 1,
-                backgroundColor: '#fee'
-              }
-            }}
-          >
-            🗑️
-          </button>
         </div>
       </div>
       
@@ -171,7 +200,6 @@ const FileTreeItem = ({ item, depth = 0, parentSize, onDelete }) => {
                 item={child} 
                 depth={depth + 1}
                 parentSize={item.size}
-                onDelete={onDelete}
               />
             ))}
         </div>
@@ -195,25 +223,6 @@ const App = () => {
       console.error('Error selecting folder:', error);
     }
     setLoading(false);
-  };
-
-  const handleDelete = (deletedPath) => {
-    if (!folderData) return;
-
-    const removeItemFromContents = (contents) => {
-      return contents.filter(item => {
-        if (item.path === deletedPath) return false;
-        if (item.isDirectory && item.contents) {
-          item.contents = removeItemFromContents(item.contents);
-        }
-        return true;
-      });
-    };
-
-    setFolderData(prev => ({
-      ...prev,
-      contents: removeItemFromContents(prev.contents)
-    }));
   };
 
   return (
@@ -272,7 +281,6 @@ const App = () => {
                   key={item.path} 
                   item={item} 
                   parentSize={folderData.contents.reduce((sum, item) => sum + item.size, 0)}
-                  onDelete={handleDelete}
                 />
               ))}
           </div>
