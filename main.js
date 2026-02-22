@@ -101,21 +101,17 @@ ipcMain.handle('open-in-explorer', async (event, path) => {
 ipcMain.handle('delete-item', async (event, itemPath, isDirectory) => {
   const result = await dialog.showMessageBox({
     type: 'warning',
-    title: 'Confirm Deletion',
-    message: `Are you sure you want to delete this ${isDirectory ? 'folder' : 'file'}?`,
+    title: 'Send to Recycle Bin',
+    message: `Send this ${isDirectory ? 'folder' : 'file'} to the Recycle Bin?`,
     detail: itemPath,
-    buttons: ['Cancel', 'Delete'],
+    buttons: ['Cancel', 'Send to Recycle Bin'],
     defaultId: 0,
     cancelId: 0,
   });
 
   if (result.response === 1) {
     try {
-      if (isDirectory) {
-        await fs.rm(itemPath, { recursive: true, force: true });
-      } else {
-        await fs.unlink(itemPath);
-      }
+      await shell.trashItem(itemPath);
       return { success: true };
     } catch (error) {
       return { success: false, error: error.message };

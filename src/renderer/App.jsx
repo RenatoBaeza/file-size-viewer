@@ -61,7 +61,17 @@ function updateNodeInTree(contents, targetPath, newContents) {
   });
 }
 
-const FileTreeItem = ({ item, depth = 0, parentSize, onContract, onLoadContents }) => {
+function removeNodeFromTree(contents, targetPath) {
+  return contents
+    .filter(item => item.path !== targetPath)
+    .map(item => {
+      if (item.isDirectory && item.contents)
+        return { ...item, contents: removeNodeFromTree(item.contents, targetPath) };
+      return item;
+    });
+}
+
+const FileTreeItem = ({ item, depth = 0, parentSize, onContract, onLoadContents, onDeleteItem }) => {
   const [isExpanded, setIsExpanded] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [showPreview, setShowPreview] = useState(false);
@@ -73,6 +83,14 @@ const FileTreeItem = ({ item, depth = 0, parentSize, onContract, onLoadContents 
   const handleOpenInExplorer = async (e) => {
     e.stopPropagation();
     await ipcRenderer.invoke('open-in-explorer', item.path);
+  };
+
+  const handleTrash = async (e) => {
+    e.stopPropagation();
+    const result = await ipcRenderer.invoke('delete-item', item.path, item.isDirectory);
+    if (result?.success) {
+      onDeleteItem?.(item.path);
+    }
   };
 
   const handleMouseMove = (e) => {
@@ -127,6 +145,7 @@ const FileTreeItem = ({ item, depth = 0, parentSize, onContract, onLoadContents 
             parentSize={item.size}
             onContract={handleExpand}
             onLoadContents={onLoadContents}
+            onDeleteItem={onDeleteItem}
           />
         ));
     }
@@ -142,6 +161,7 @@ const FileTreeItem = ({ item, depth = 0, parentSize, onContract, onLoadContents 
             parentSize={item.size}
             depth={depth + 1}
             onContract={handleExpand}
+            onDeleteItem={onDeleteItem}
           />
         ) : (
           <FileTreeItem
@@ -151,6 +171,7 @@ const FileTreeItem = ({ item, depth = 0, parentSize, onContract, onLoadContents 
             parentSize={item.size}
             onContract={handleExpand}
             onLoadContents={onLoadContents}
+            onDeleteItem={onDeleteItem}
           />
         )
       );
@@ -163,7 +184,7 @@ const FileTreeItem = ({ item, depth = 0, parentSize, onContract, onLoadContents 
           <div className="tree-cell-name">
             <div className="tree-cell-name-inner" style={{ paddingLeft }}>
               <span className="expand-btn" onClick={handleToggleExpand}>
-                {isLoading ? '…' : isExpanded ? '▾' : '▸'}
+                {isLoading ? '⏳' : isExpanded ? '🔽' : '▶️'}
               </span>
               <span className="item-name item-name-dir">📁 {item.name}</span>
             </div>
@@ -178,6 +199,7 @@ const FileTreeItem = ({ item, depth = 0, parentSize, onContract, onLoadContents 
           <div className="tree-cell-actions">
             <button className="btn-icon" onClick={handleOpenInExplorer} title="Open in Explorer">📂</button>
             <button className="btn-icon" onClick={handleContractAll} title="Collapse">⌃</button>
+            <button className="btn-icon btn-icon-danger" onClick={handleTrash} title="Send to Recycle Bin">🗑</button>
           </div>
         </div>
         {isExpanded && renderDirectoryContents()}
@@ -214,12 +236,13 @@ const FileTreeItem = ({ item, depth = 0, parentSize, onContract, onLoadContents 
       </div>
       <div className="tree-cell-actions">
         <button className="btn-icon" onClick={handleOpenInExplorer} title="Open in Explorer">📂</button>
+        <button className="btn-icon btn-icon-danger" onClick={handleTrash} title="Send to Recycle Bin">🗑</button>
       </div>
     </div>
   );
 };
 
-const UnfolderedFiles = ({ files, parentSize, depth = 0, onContract }) => {
+const UnfolderedFiles = ({ files, parentSize, depth = 0, onContract, onDeleteItem }) => {
   const totalSize = files.reduce((s, f) => s + f.size, 0);
   const [isExpanded, setIsExpanded] = useState(false);
   const paddingLeft = `${depth * 20}px`;
@@ -238,7 +261,7 @@ const UnfolderedFiles = ({ files, parentSize, depth = 0, onContract }) => {
         <div className="tree-cell-name">
           <div className="tree-cell-name-inner" style={{ paddingLeft }}>
             <span className="expand-btn" onClick={() => setIsExpanded(!isExpanded)}>
-              {isExpanded ? '▾' : '▸'}
+              {isExpanded ? '🔽' : '▶️'}
             </span>
             <span className="item-name item-name-unfoldered">
               📑 Unfoldered Files ({files.length})
@@ -265,6 +288,7 @@ const UnfolderedFiles = ({ files, parentSize, depth = 0, onContract }) => {
             depth={depth + 1}
             parentSize={totalSize}
             onContract={() => setIsExpanded(false)}
+            onDeleteItem={onDeleteItem}
           />
         ))}
     </>
@@ -326,6 +350,13 @@ const App = () => {
     }));
   };
 
+  const handleDeleteItem = (targetPath) => {
+    setFolderData(prev => ({
+      ...prev,
+      contents: removeNodeFromTree(prev.contents, targetPath),
+    }));
+  };
+
   const handleSelectFolder = async () => {
     setScanProgress(null);
     setLoading(true);
@@ -359,6 +390,7 @@ const App = () => {
             item={file}
             parentSize={totalSize}
             onLoadContents={handleLoadContents}
+            onDeleteItem={handleDeleteItem}
           />
         ));
     }
@@ -372,6 +404,7 @@ const App = () => {
             key="unfoldered"
             files={itemOrGroup.files}
             parentSize={totalSize}
+            onDeleteItem={handleDeleteItem}
           />
         ) : (
           <FileTreeItem
@@ -379,6 +412,7 @@ const App = () => {
             item={itemOrGroup}
             parentSize={totalSize}
             onLoadContents={handleLoadContents}
+            onDeleteItem={handleDeleteItem}
           />
         )
       );
