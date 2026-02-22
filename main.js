@@ -7,17 +7,32 @@ process.on('unhandledRejection', (reason) => {
   console.error('Unhandled rejection in main process:', reason);
 });
 
+function sizeOnDisk(stats) {
+  if (stats.size === 0) return 0;
+  const clusterSize = stats.blksize || 4096;
+  return Math.ceil(stats.size / clusterSize) * clusterSize;
+}
+
 async function getDirectorySize(dirPath) {
   let size = 0;
-  const items = await fs.readdir(dirPath, { withFileTypes: true });
+  let items;
+  try {
+    items = await fs.readdir(dirPath, { withFileTypes: true });
+  } catch {
+    return size;
+  }
 
   for (const item of items) {
     const fullPath = path.join(dirPath, item.name);
     if (item.isDirectory()) {
       size += await getDirectorySize(fullPath);
     } else {
-      const stats = await fs.stat(fullPath);
-      size += stats.size;
+      try {
+        const stats = await fs.stat(fullPath);
+        size += sizeOnDisk(stats);
+      } catch {
+        // skip inaccessible files and broken junctions/symlinks
+      }
     }
   }
   return size;
@@ -29,12 +44,26 @@ async function scanDirectory(dirPath, progressCallback, stats = { files: 0, dirs
 
   for (const item of items) {
     const fullPath = path.join(dirPath, item.name);
-    const fstats = await fs.stat(fullPath);
+    let fstats;
+    try {
+      fstats = await fs.stat(fullPath);
+    } catch (err) {
+      results.push({
+        name: item.name,
+        path: fullPath,
+        isDirectory: item.isDirectory(),
+        size: 0,
+        isInaccessible: true,
+        error: err.code ?? err.message,
+      });
+      continue;
+    }
+
     const entry = {
       name: item.name,
       path: fullPath,
       isDirectory: item.isDirectory(),
-      size: fstats.size,
+      size: item.isDirectory() ? 0 : sizeOnDisk(fstats),
     };
 
     if (item.isDirectory()) {

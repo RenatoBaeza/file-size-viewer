@@ -123,6 +123,24 @@ const FileTreeItem = ({ item, depth = 0, parentSize, onContract, onLoadContents,
     setIsExpanded(true);
   };
 
+  if (item.isInaccessible) {
+    return (
+      <div className={`tree-row tree-row-inaccessible ${depth % 2 === 0 ? 'tree-row-even' : 'tree-row-odd'}`}>
+        <div className="tree-cell-name">
+          <div className="tree-cell-name-inner" style={{ paddingLeft }}>
+            <span className="item-name item-name-inaccessible" title={`Inaccessible: ${item.error}`}>
+              ⚠️ {item.name}
+            </span>
+          </div>
+        </div>
+        <div className="tree-cell-size">
+          <span className="size-text inaccessible-label">inaccessible</span>
+        </div>
+        <div className="tree-cell-actions" />
+      </div>
+    );
+  }
+
   const isImage = !item.isDirectory && isImageFile(item.name);
 
   const renderDirectoryContents = () => {
@@ -446,7 +464,7 @@ const App = () => {
           <div className="tree-container">
             <div className="tree-header">
               <div>Name</div>
-              <div style={{ textAlign: 'right' }}>Size</div>
+              <div style={{ textAlign: 'right' }}>Size on Disk</div>
               <div style={{ textAlign: 'center' }}>Actions</div>
             </div>
             {renderContents()}
