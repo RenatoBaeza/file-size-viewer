@@ -1,12 +1,12 @@
 {
   "name": "filesizeviewer",
   "version": "1.0.0",
-  "description": "",
+  "description": "Visualize disk usage and file sizes at a glance",
   "main": "main.js",
   "scripts": {
     "start": "electron .",
-    "watch": "webpack --watch",
-    "build": "webpack",
+    "watch": "webpack --watch --mode development",
+    "build": "webpack --mode production",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "author": "",

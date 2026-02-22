@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
-const { ipcRenderer } = window.require('electron');
+
+const api = window.electronAPI;
 
 function formatSize(bytes) {
   const units = ['B', 'KB', 'MB', 'GB', 'TB'];
@@ -82,12 +83,12 @@ const FileTreeItem = ({ item, depth = 0, parentSize, onContract, onLoadContents,
 
   const handleOpenInExplorer = async (e) => {
     e.stopPropagation();
-    await ipcRenderer.invoke('open-in-explorer', item.path);
+    await api.openInExplorer(item.path);
   };
 
   const handleTrash = async (e) => {
     e.stopPropagation();
-    const result = await ipcRenderer.invoke('delete-item', item.path, item.isDirectory);
+    const result = await api.deleteItem(item.path, item.isDirectory);
     if (result?.success) {
       onDeleteItem?.(item.path);
     }
@@ -112,7 +113,7 @@ const FileTreeItem = ({ item, depth = 0, parentSize, onContract, onLoadContents,
     if (item.hasContents && !item.contents) {
       setIsLoading(true);
       try {
-        const contents = await ipcRenderer.invoke('scan-subdirectory', item.path);
+        const contents = await api.scanSubdirectory(item.path);
         onLoadContents?.(item.path, contents);
       } catch (err) {
         console.error('Error scanning subdirectory:', err);
@@ -332,15 +333,15 @@ const App = () => {
   const [scanProgress, setScanProgress] = useState(null);
 
   useEffect(() => {
-    const handleProgress = (event, data) => {
+    const handleProgress = (data) => {
       setScanProgress(prev => {
         const newEntry = { path: data.currentPath, type: data.dirs > (prev?.dirs ?? 0) ? 'dir' : 'file' };
         const newLogs = prev ? [...prev.logs, newEntry].slice(-200) : [newEntry];
         return { files: data.files, dirs: data.dirs, logs: newLogs };
       });
     };
-    ipcRenderer.on('scan-progress', handleProgress);
-    return () => ipcRenderer.removeListener('scan-progress', handleProgress);
+    const removeListener = api.onScanProgress(handleProgress);
+    return removeListener;
   }, []);
 
   const handleLoadContents = (targetPath, newContents) => {
@@ -361,7 +362,7 @@ const App = () => {
     setScanProgress(null);
     setLoading(true);
     try {
-      const result = await ipcRenderer.invoke('select-directory');
+      const result = await api.selectDirectory();
       if (result) setFolderData(result);
     } catch (err) {
       console.error('Error selecting folder:', err);
