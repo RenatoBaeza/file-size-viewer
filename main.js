@@ -21,23 +21,30 @@ async function getDirectorySize(dirPath) {
   return size;
 }
 
-async function scanDirectory(dirPath) {
+async function scanDirectory(dirPath, progressCallback, stats = { files: 0, dirs: 0 }) {
   const items = await fs.readdir(dirPath, { withFileTypes: true });
   const results = [];
   
   for (const item of items) {
     const fullPath = path.join(dirPath, item.name);
-    const stats = await fs.stat(fullPath);
+    const fstats = await fs.stat(fullPath);
     const entry = {
       name: item.name,
       path: fullPath,
       isDirectory: item.isDirectory(),
-      size: stats.size
+      size: fstats.size
     };
 
     if (item.isDirectory()) {
+      stats.dirs++;
+      if (progressCallback) progressCallback({ files: stats.files, dirs: stats.dirs, currentPath: fullPath });
       entry.size = await getDirectorySize(fullPath);
-      entry.contents = await scanDirectory(fullPath);
+      entry.hasContents = true;
+    } else {
+      stats.files++;
+      if (progressCallback && stats.files % 50 === 0) {
+        progressCallback({ files: stats.files, dirs: stats.dirs, currentPath: fullPath });
+      }
     }
 
     results.push(entry);
@@ -65,17 +72,25 @@ const createWindow = () => {
 }
 
 // IPC handlers
-ipcMain.handle('select-directory', async () => {
+ipcMain.handle('select-directory', async (event) => {
   const result = await dialog.showOpenDialog({
     properties: ['openDirectory']
   });
   
   if (!result.canceled) {
     const dirPath = result.filePaths[0];
-    const contents = await scanDirectory(dirPath);
+    const progressCallback = (data) => {
+      event.sender.send('scan-progress', data);
+    };
+    const contents = await scanDirectory(dirPath, progressCallback);
     return { path: dirPath, contents };
   }
   return null;
+});
+
+ipcMain.handle('scan-subdirectory', async (event, dirPath) => {
+  const contents = await scanDirectory(dirPath);
+  return contents;
 });
 
 ipcMain.handle('open-in-explorer', async (event, path) => {
